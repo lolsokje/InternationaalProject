@@ -1,0 +1,106 @@
+mport requests
+import json
+import urllib2
+
+#######Import value from HC06
+value = "36"
+valueTemp = ""
+valueMove = ""
+#######Import value from HC06
+#######Variables
+TempArray = []
+MoveArray = []
+MoveTrack = []
+
+MovementState = ""
+CurrentMoveState = ""
+PastMoveState = ""
+MoveStateCount = 0
+
+MoveState = ""
+TemperatureState = ""
+TempState = ""
+#######Variables
+
+
+
+if (value > 10):        #Is Temperature
+        valueTemp = value
+        TempArray.append(valueTemp)
+
+elif (value < 10):      #Is Movement
+        valueMove = value
+        MoveArray.append(valueMove)
+
+
+if (len(MoveArray) == 9):
+        for x in range(10):
+                print(x)
+                if (MoveArray[x] > 0.70):
+                        CurrentMovementState = "Fallen"
+                if (MoveArray[x] <= 0.70 and MoveArray[x] > 0.10 and CurrentMoveState != "Fallen"):
+                        CurrentMovementState = "Moving"
+                if (MoveArray[x] and CurrentMoveState != "Fallen"):
+                        CurrentMoveState = "Still"
+        PastMoveState = CurrentMoveState
+        MoveTrack.append(CurrentMovementState)
+        CurrentMoveState = ""
+
+##Reset MoveArray
+if (len(MoveArray) > 9):
+        for x in range(10):
+                del MoveArray[x]
+
+##Checks after 300 measurements
+if (len(MoveTrack) == 29):
+        MoveStateCount = 0
+        for x in range(30):
+                if (MoveTrack[x] == "Still" and x < 30 and  Movetrack[x+1] == "Still"):
+                        MoveStateCount = MoveStateCount + 1
+                if (MoveTrack[x] == "Still" and x < 30 and MoveTrack[x+1] != "Still"):
+                        MoveStateCount = 0
+                if (MoveStateCount > 14):
+                        MoveState = "Ded"
+
+#######Json to send to API
+dataTemp = {
+        "value": valueTemp,
+        "Serial": "I1I1I1I1II1J1"
+}
+dataMove = {
+        "value": valueMove,
+        "Serial": "I1I1I1I1II1J1",
+        "State": MoveState
+}
+#######Json to send to API
+dataTemp = {
+        "value": valueTemp,
+        "Serial": "I1I1I1I1II1J1"
+}
+dataMove = {
+        "value": valueMove,
+        "Serial": "I1I1I1I1II1J1",
+        "State": MoveState
+}
+#######Json to send to API
+
+
+
+
+
+
+#######Calls to rest API
+req = urllib2.Request('http://141.135.5.117:3500/temp/post')
+req.add_header('Content-Type', 'application/json')
+req.add_header('Authorization', 'JWT token here')
+
+response = urllib2.urlopen(req, json.dumps(dataTemp))
+
+
+
+req2 = urllib2.Request('http://141.135.5.117:3500/post/move')
+req2.add_header('Content-type', 'application/json')
+req2.add_header('Authorization', 'JWT token here')
+
+response2 = urllib2.urlopen(req2, json.dumps(dataMove))
+#######Calls to rest API
