@@ -1,0 +1,130 @@
+  /*  Arduino code
+ *  Accelerometer, temperature measuremnt. Sending it over bluetooth proto
+ *  In accelerometer data we have our calibration equation and change unit to g-force
+ *  Then we keep update zeropoint so we can get accurate readings on change of movement
+ *  After that we calculate 3D vector lenght. We get 50 readings
+ *  When 50 sample has reach we calculate RMS-value and mark our flag so we can send data over bluetooth and serial monitor
+ */
+ 
+#include <SoftwareSerial.h>
+
+#define TOTAL_SAMPLE 50
+#define NTC_VALUE 2730
+#define SERIAL_VALUE 5620
+
+SoftwareSerial BL_port(3,2); 
+
+//Analogpins for sensors
+const int Xpin = A1;
+const int Ypin = A2;
+const int Zpin = A3;
+const int NTCpin = A7;
+
+//Accelero Variables
+volatile boolean rdy = false;           //Flag to accelerometer data          
+volatile float X_zeroPoint, Y_zeroPoint, Z_zeroPoint = 0; //ZeroPoints for every axis                
+float prs = 0.95;                       //Filter value to nullify zeropoint
+float RMS_Val = 0;                      //RMS-Value
+volatile long aika = 0;
+
+void setTimer()  //Set timer1 interrupt frequency to 50Hz.
+{
+ cli();
+ TCCR1A = 0x00;
+ TCCR1B = 0x0D;
+ TCNT1 = 0x00;
+ OCR1A = 313;
+ TIMSK1 = 0x02; 
+ sei();
+}
+
+ISR(TIMER1_COMPA_vect)
+{
+  static float out = 0;
+  static int accCount = 0;
+
+  //Get RAW data
+  float Yaxis = analogRead(Ypin);
+  float Xaxis = analogRead(Xpin);
+  float Zaxis = analogRead(Zpin);
+  
+  //Get G-force from RAW data
+  Xaxis = (0.136481 * Xaxis - 49.33794) / 9.81;
+  Yaxis = (0.133451 * Yaxis - 48.30921) / 9.81;
+  Zaxis = (0.13625  * Zaxis - 49.45875) / 9.81;
+
+  //Get zero point
+  X_zeroPoint = X_zeroPoint * prs + Xaxis * (1-prs);
+  Y_zeroPoint = Y_zeroPoint * prs + Yaxis * (1-prs);
+  Z_zeroPoint = Z_zeroPoint * prs + Zaxis * (1-prs);
+
+  //decrease zero point from new value
+  Xaxis = Xaxis - X_zeroPoint;
+  Yaxis = Yaxis - Y_zeroPoint;
+  Zaxis = Zaxis - Z_zeroPoint;
+
+  //Get 3D vector lenght
+  float sample = sqrt(pow(Xaxis, 2) + pow(Yaxis, 2) + pow(Zaxis, 2));
+
+  //Get vector lengths in same buffer
+  out = out + pow(sample, 2);
+
+  accCount++;
+  //Get RMS value from vector lenght samples we have been collecting
+  if(accCount % TOTAL_SAMPLE == 0)
+  {
+    RMS_Val = sqrt(out/TOTAL_SAMPLE); 
+    out = 0;
+    accCount = 0;
+    rdy = true;
+  } 
+}
+//Get temperature on NTC resistor using Steinhart-Hart equcation
+float getTemp(long serialResistor, long nominalValue)
+{
+  float aVal = 0;
+  for(int i = 0;i<5;i++)  
+  {
+    aVal += analogRead(NTCpin);
+  }
+  aVal /= 5;
+
+  aVal = 1024 - aVal;
+  
+  aVal = serialResistor * (1023 / aVal -1); 
+
+  float steinhart;
+  steinhart = log(aVal / nominalValue);
+
+  steinhart /= 3950;
+  steinhart += 1.0 / (22.5 + 273.15);
+  steinhart = (1.0 / steinhart) - 273.15;
+  return steinhart;
+}
+
+
+void setup() 
+{
+  BL_port.begin(9600);
+  Serial.begin(9600);
+  setTimer();
+  Serial.println("Starting up");
+
+}
+
+void loop() 
+{
+  if(rdy)
+  {
+    rdy = false;
+    float temp = getTemp(SERIAL_VALUE, NTC_VALUE);
+
+    Serial.print(temp);
+    Serial.print(", ");
+    Serial.println(RMS_Val);
+    
+    BL_port.print(temp);
+    BL_port.print(",");
+    BL_port.println(RMS_Val);
+  }
+}
