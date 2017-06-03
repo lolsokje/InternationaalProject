@@ -14,3 +14,7 @@ The app can be installed in two ways:
 
 In the ZIP file you can find the files for the API. To run it, install NodeJS and the packages in the package.json file. 
 Then run server.js
+
+### Website
+
+In the ZIP file are al the files of the website. Deploy the folder in your root folder of your server and it works.
